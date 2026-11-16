@@ -1,0 +1,231 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Justin Verstijnen Microsoft Intune with Log Analytics monitoring\n1. Select a **Log Analytics Workspace**\n2. Select a **Time Range**\n\nBoth filters apply to all five queries."
+      },
+      "name": "workbook-header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "value::all"
+        ],
+        "parameters": [
+          {
+            "id": "5a39c7ae-3f9b-5e85-814f-6f6fa44513fb",
+            "version": "KqlParameterItem/1.0",
+            "name": "Workspace",
+            "label": "Log Analytics Workspace",
+            "type": 5,
+            "isRequired": true,
+            "query": "Resources\n| where type =~ \"microsoft.operationalinsights/workspaces\"\n| order by name asc\n| project value = id, label = name, selected = row_number() == 1, group = resourceGroup",
+            "crossComponentResources": [
+              "value::all"
+            ],
+            "typeSettings": {
+              "resourceTypeFilter": {
+                "microsoft.operationalinsights/workspaces": true
+              },
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "id": "13dddda7-8b97-505e-8fd1-d8688988b173",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 86400000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 7776000000
+                },
+                {
+                  "durationMs": 15552000000
+                }
+              ],
+              "allowCustom": true
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources"
+      },
+      "name": "workspace-and-time-range-pills"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 5.1 Intune Device Inventory\nA filtered inventory of Windows devices with compliance and encryption indicators."
+      },
+      "name": "section-1-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "IntuneDevices\n| where TimeGenerated {TimeRange:query}\n| where OS =~ \"Windows\" and EncryptionStatusString !~ \"Encrypted\"\n| extend Compliance = strcat(iff(CompliantState =~ \"Compliant\", \"✅ \", \"❌ \"), CompliantState)\n| extend Encryption = case(tostring(EncryptionStatusString) in~ (\"True\", \"Encrypted\"), \"✅ Encrypted\", tostring(EncryptionStatusString) =~ \"False\", \"❌ Not Encrypted\", strcat(\"❌ \", EncryptionStatusString))\n| extend LastSeen = format_datetime(todatetime(LastContact), \"dd-MM-yyyy HH:mm\")\n| project DeviceName, UPN, Manufacturer, Model, SerialNumber, ['Operating System'] = OSVersion, Encryption, Compliance, LastSeen\n| order by DeviceName asc",
+        "size": 0,
+        "noDataMessage": "No data for the selected workspace and time range.",
+        "timeContextFromParameter": "TimeRange",
+        "showExportToExcel": true,
+        "exportToExcelOptions": "all",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true
+        }
+      },
+      "name": "section-1-query"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 5.2 Intune devices by platform\nDevice records per operating system, ordered by count."
+      },
+      "name": "section-2-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "IntuneDevices\n| where TimeGenerated {TimeRange:query}\n| summarize DeviceCount = count() by Platform = tostring(OS)\n| order by DeviceCount desc",
+        "size": 1,
+        "noDataMessage": "No data for the selected workspace and time range.",
+        "timeContextFromParameter": "TimeRange",
+        "showExportToExcel": true,
+        "exportToExcelOptions": "all",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "barchart"
+      },
+      "name": "section-2-query"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 5.3 Compliance overview by operating system\nCompliance status by operating system (records without a platform are excluded)."
+      },
+      "name": "section-3-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "IntuneDeviceComplianceOrg\n| where TimeGenerated {TimeRange:query}\n| where isnotempty(OS)\n| summarize Devices = count() by OS, ComplianceState\n| extend Category = strcat(OS, \" - \", ComplianceState)\n| project Category, Devices",
+        "size": 1,
+        "noDataMessage": "No data for the selected workspace and time range.",
+        "timeContextFromParameter": "TimeRange",
+        "showExportToExcel": true,
+        "exportToExcelOptions": "all",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "piechart"
+      },
+      "name": "section-3-query"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 5.4 Administrator activities\nIntune administrator actions within the selected time period."
+      },
+      "name": "section-4-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "IntuneAuditLogs\n| where TimeGenerated {TimeRange:query}\n| project TimeGenerated, Identity, OperationName, Category, ResultType, ResultDescription\n| order by TimeGenerated desc",
+        "size": 0,
+        "noDataMessage": "No data for the selected workspace and time range.",
+        "timeContextFromParameter": "TimeRange",
+        "showExportToExcel": true,
+        "exportToExcelOptions": "all",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true
+        }
+      },
+      "name": "section-4-query"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 5.5 Deleted Intune objects\nIntune audit activities containing Delete within the selected time period."
+      },
+      "name": "section-5-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "IntuneAuditLogs\n| where TimeGenerated {TimeRange:query}\n| where OperationName contains \"Delete\"\n| project TimeGenerated, Identity, OperationName, Category, ResultType, ResultDescription, Properties\n| order by TimeGenerated desc",
+        "size": 0,
+        "noDataMessage": "No data for the selected workspace and time range.",
+        "timeContextFromParameter": "TimeRange",
+        "showExportToExcel": true,
+        "exportToExcelOptions": "all",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 10000,
+          "filter": true
+        }
+      },
+      "name": "section-5-query"
+    }
+  ],
+  "fallbackResourceIds": [
+    "Azure Monitor"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
